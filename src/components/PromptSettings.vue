@@ -19,6 +19,7 @@ import {
   listRVCModels,
   listVoicePrompts,
   listVoices,
+  preloadRVCModel,
   refreshRVCVoices,
   resetBrandingLogo,
   resetPrompt,
@@ -482,6 +483,7 @@ async function toggleRvcRuntime(): Promise<void> {
     const result = await setRVCRuntime(desired)
     rvcEnabled.value = result.enabled
     saveVoiceSettings(false)
+    if (result.enabled) await preloadSelectedRvcModel()
     emit('toast', result.enabled ? 'RVC 已启用' : 'RVC 已关闭')
   } catch (error) {
     emit('error', error instanceof Error ? error.message : 'RVC 状态切换失败')
@@ -490,7 +492,16 @@ async function toggleRvcRuntime(): Promise<void> {
   }
 }
 
-function selectRvcModel(): void {
+async function preloadSelectedRvcModel(): Promise<void> {
+  if (!rvcEnabled.value || !selectedRvcModelName.value) return
+  try {
+    await preloadRVCModel(selectedRvcModelName.value)
+  } catch {
+    // Loading remains lazy when background preload is unavailable.
+  }
+}
+
+async function selectRvcModel(): Promise<void> {
   if (
     selectedRvcIndexName.value
     && !selectedRvcModel.value?.indexes.some(
@@ -500,6 +511,7 @@ function selectRvcModel(): void {
     selectedRvcIndexName.value = ''
   }
   saveVoiceSettings(false)
+  await preloadSelectedRvcModel()
 }
 
 async function loadRVCModels(): Promise<void> {
@@ -539,6 +551,7 @@ async function loadRVCModels(): Promise<void> {
       }
     }
     saveVoiceSettings(false)
+    void preloadSelectedRvcModel()
   } catch {
     rvcModels.value = null
   } finally {

@@ -22,31 +22,6 @@ import type {
 import { createSseParser } from './sse'
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '')
-const CLIENT_KEY = 'nebula-client-id'
-let memoryClientId = ''
-
-function getClientId(): string {
-  try {
-    let value = localStorage.getItem(CLIENT_KEY)
-    if (!value) {
-      value = crypto.randomUUID()
-      localStorage.setItem(CLIENT_KEY, value)
-    }
-    return value
-  } catch {
-    if (!memoryClientId) memoryClientId = crypto.randomUUID()
-    return memoryClientId
-  }
-}
-
-function clientHeaders(): Record<string, string> {
-  const userId = getClientId()
-  return {
-    'X-Client-ID': userId,
-    'X-Tenant-ID': 'default-tenant',
-    'X-User-ID': userId,
-  }
-}
 
 export class ApiError extends Error {
   code: string
@@ -88,9 +63,6 @@ async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response
   try {
     const headers = new Headers(init?.headers)
-    for (const [name, value] of Object.entries(clientHeaders())) {
-      headers.set(name, value)
-    }
     response = await fetch(apiUrl(path), { ...init, headers })
   } catch {
     throw new ApiError('无法连接后端服务，请确认 FastAPI 已启动', 'network_error')
@@ -233,9 +205,6 @@ export async function uploadBrandingVideo(
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest()
     xhr.open('POST', apiUrl('/api/settings/branding/background/video'))
-    for (const [name, value] of Object.entries(clientHeaders())) {
-      xhr.setRequestHeader(name, value)
-    }
     xhr.upload.onprogress = (event) => {
       if (event.lengthComputable && event.total > 0) {
         onProgress?.(Math.round((event.loaded / event.total) * 100))
@@ -403,7 +372,6 @@ export async function* streamTTSSegments(
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        ...clientHeaders(),
       },
       body: JSON.stringify({
         text,
@@ -515,6 +483,16 @@ export async function refreshRVCVoices(): Promise<AudioVoices> {
   return requestJson<AudioVoices>('/api/audio/rvc/refresh', { method: 'POST' })
 }
 
+export async function preloadRVCModel(modelName: string): Promise<{
+  preloaded: boolean
+  model_name: string
+}> {
+  return requestJson(
+    `/api/audio/rvc/preload?model_name=${encodeURIComponent(modelName)}`,
+    { method: 'POST' },
+  )
+}
+
 export async function setRVCRuntime(enabled: boolean): Promise<{ enabled: boolean }> {
   return requestJson<{ enabled: boolean }>('/api/audio/rvc/runtime', {
     method: 'POST',
@@ -549,7 +527,6 @@ export async function streamChat({
       headers: {
         'Content-Type': 'application/json',
         Accept: 'text/event-stream',
-        ...clientHeaders(),
       },
       body: JSON.stringify({
         message,
