@@ -14,7 +14,19 @@ const emit = defineEmits<{
 
 const input = ref('')
 const textarea = ref<HTMLTextAreaElement | null>(null)
-const webSearch = ref(false)
+const WEB_SEARCH_KEY = 'nebula-web-search-enabled-v2'
+const storedWebSearch = localStorage.getItem(WEB_SEARCH_KEY)
+const webSearch = ref(
+  storedWebSearch === null ? true : storedWebSearch === '1',
+)
+if (storedWebSearch === null) {
+  localStorage.setItem(WEB_SEARCH_KEY, '1')
+}
+
+function toggleWebSearch(): void {
+  webSearch.value = !webSearch.value
+  localStorage.setItem(WEB_SEARCH_KEY, webSearch.value ? '1' : '0')
+}
 
 function resize(): void {
   if (!textarea.value) return
@@ -59,7 +71,7 @@ function keydown(event: KeyboardEvent): void {
           aria-label="联网搜索"
           :aria-pressed="webSearch"
           :title="webSearch ? '已开启联网搜索' : '开启联网搜索'"
-          @click="webSearch = !webSearch"
+          @click="toggleWebSearch"
         >
           <svg viewBox="0 0 24 24" aria-hidden="true" class="globe-icon">
             <circle cx="12" cy="12" r="9" />

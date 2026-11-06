@@ -19,6 +19,7 @@ import type { ChatMessage, SessionSummary, Source } from './types'
 const SESSION_KEY = 'nebula-ai-session-id'
 const SHOW_SOURCES_KEY = 'nebula-show-sources'
 const SIDEBAR_COLLAPSED_KEY = 'nebula-sidebar-collapsed'
+const WEB_SEARCH_KEY = 'nebula-web-search-enabled-v2'
 
 const sessions = ref<SessionSummary[]>([])
 const messages = ref<ChatMessage[]>([])
@@ -365,6 +366,8 @@ async function removeSession(id: string): Promise<void> {
 
 async function sendMessage(text: string, enableWebSearch = false): Promise<void> {
   if (busy.value || !text.trim()) return
+  const webSearchEnabled = enableWebSearch
+    || localStorage.getItem(WEB_SEARCH_KEY) === '1'
   busy.value = true
   errorMessage.value = ''
   agentStage.value = '正在准备...'
@@ -394,7 +397,7 @@ async function sendMessage(text: string, enableWebSearch = false): Promise<void>
     await streamChat({
       message: text,
       sessionId: activeSessionId.value ?? undefined,
-      enableWebSearch,
+      enableWebSearch: webSearchEnabled,
       showSources: showSources.value,
       signal: controller.signal,
       onEvent: (event) => {
@@ -405,13 +408,11 @@ async function sendMessage(text: string, enableWebSearch = false): Promise<void>
           activeSessionId.value = event.session_id
           localStorage.setItem(SESSION_KEY, event.session_id)
         } else if (event.type === 'status') {
-          if (event.stage === 'classify' && event.route === 'time') {
-            agentStage.value = '识别时间查询，准备调用工具'
-          } else if (event.stage === 'classify' && event.route === 'rag') {
-            agentStage.value = '检索知识库中...'
+          if (event.stage === 'select_tools') {
+            agentStage.value = event.message || '正在选择工具...'
           } else if (event.stage === 'load_memory') {
             agentStage.value = event.message || '正在获取长期记忆...'
-          } else if (event.stage === 'web_search' && enableWebSearch) {
+          } else if (event.stage === 'web_search' && webSearchEnabled) {
             agentStage.value = event.message || '正在联网搜索...'
           } else {
             agentStage.value = event.message || '正在思考...'
@@ -425,6 +426,9 @@ async function sendMessage(text: string, enableWebSearch = false): Promise<void>
           showError(event.message)
         } else if (event.type === 'done') {
           completed = true
+          if (event.assistant_message_id) {
+            target.id = event.assistant_message_id
+          }
           if (showSources && event.sources?.length) target.sources = event.sources as Source[]
           if (event.memories?.length) target.memories = event.memories
           if (event.recalled_conversations?.length) {

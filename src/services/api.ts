@@ -362,7 +362,7 @@ export interface TTSAudioSegment {
 }
 
 export async function* streamTTSSegments(
-  text: string,
+  messageId: string,
   options: TTSStreamOptions,
   signal?: AbortSignal,
 ): AsyncGenerator<TTSAudioSegment> {
@@ -374,7 +374,7 @@ export async function* streamTTSSegments(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        text,
+        message_id: messageId,
         engine: options.engine,
         edge_voice: options.edgeVoice || undefined,
         rvc_enabled: options.rvcEnabled,
@@ -399,6 +399,38 @@ export async function* streamTTSSegments(
   const reader = response.body.getReader()
   const decoder = new TextDecoder()
   let buffer = ''
+
+  function decodeAudioLine(line: string): TTSAudioSegment | null {
+    const trimmed = line.trim()
+    if (!trimmed) return null
+    const event = JSON.parse(trimmed) as {
+      type: string
+      data?: string
+      sample_rate?: number
+      message?: string
+      code?: string
+    }
+    if (event.type === 'error') {
+      throw new ApiError(event.message || '语音生成失败', event.code || 'tts_stream_failed')
+    }
+    if (event.type !== 'audio' || !event.data || !event.sample_rate) return null
+
+    const binary = atob(event.data)
+    const bytes = new Uint8Array(binary.length)
+    for (let i = 0; i < binary.length; i += 1) {
+      bytes[i] = binary.charCodeAt(i)
+    }
+    if (bytes.byteLength % 2 !== 0) {
+      throw new ApiError('PCM 音频数据不完整', 'invalid_audio')
+    }
+    const view = new DataView(bytes.buffer)
+    const samples = new Float32Array(bytes.byteLength / 2)
+    for (let i = 0; i < samples.length; i += 1) {
+      samples[i] = view.getInt16(i * 2, true) / 32768
+    }
+    return { samples, sampleRate: event.sample_rate }
+  }
+
   try {
     while (true) {
       const { value, done } = await reader.read()
@@ -409,34 +441,14 @@ export async function* streamTTSSegments(
         const line = buffer.slice(0, newline).trim()
         buffer = buffer.slice(newline + 1)
         newline = buffer.indexOf('\n')
-        if (!line) continue
-        const event = JSON.parse(line) as {
-          type: string
-          data?: string
-          sample_rate?: number
-          message?: string
-          code?: string
-        }
-        if (event.type === 'error') {
-          throw new ApiError(event.message || '语音生成失败', event.code || 'tts_stream_failed')
-        }
-        if (event.type === 'audio' && event.data && event.sample_rate) {
-          const binary = atob(event.data)
-          const bytes = new Uint8Array(binary.length)
-          for (let i = 0; i < binary.length; i += 1) {
-            bytes[i] = binary.charCodeAt(i)
-          }
-          if (bytes.byteLength % 2 !== 0) {
-            throw new ApiError('PCM 音频数据不完整', 'invalid_audio')
-          }
-          const view = new DataView(bytes.buffer)
-          const samples = new Float32Array(bytes.byteLength / 2)
-          for (let i = 0; i < samples.length; i += 1) {
-            samples[i] = view.getInt16(i * 2, true) / 32768
-          }
-          yield { samples, sampleRate: event.sample_rate }
-        }
+        const segment = decodeAudioLine(line)
+        if (segment) yield segment
       }
+    }
+    buffer += decoder.decode()
+    for (const line of buffer.split(/\r?\n/)) {
+      const segment = decodeAudioLine(line)
+      if (segment) yield segment
     }
   } finally {
     reader.releaseLock()

@@ -124,6 +124,7 @@ export type StreamEvent =
       type: 'done'
       status: 'ok' | 'error'
       session_id: string
+      assistant_message_id?: string | null
       sources?: Source[]
       web_sources?: WebSource[]
       memories?: MemoryFact[]

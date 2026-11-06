@@ -268,7 +268,7 @@ async function _playStream(message: ChatMessage): Promise<void> {
     source.connect(fade)
     fade.connect(masterGain)
 
-    const edgeFade = 0.008
+    const edgeFade = 0.012
     const now = audioContext.currentTime
     const underrun = !firstSegment && nextStartTime < now + 0.02
     if (underrun) ttsPhase.value = 'buffering'
@@ -335,7 +335,7 @@ async function _playStream(message: ChatMessage): Promise<void> {
     const options = { ...currentTtsOptions.value }
     let playbackStarted = false
     for await (const segment of streamTTSSegments(
-      stripMarkdown(message.content),
+      message.id,
       options,
       controller.signal,
     )) {
