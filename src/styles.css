@@ -1334,6 +1334,10 @@ svg {
   max-width: min(710px, calc(100% - 44px));
 }
 
+.message-row--assistant .message-body {
+  width: min(710px, calc(100% - 44px));
+}
+
 .message-row--user .message-body {
   display: flex;
   align-items: flex-end;
@@ -1370,6 +1374,268 @@ svg {
   background: var(--accent);
   border-radius: 50%;
   animation: pulse 1.2s infinite;
+}
+
+.execution-plan {
+  width: min(560px, 100%);
+  margin: 3px 0 12px;
+  overflow: hidden;
+  color: #b8c4d3;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.execution-plan-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 11px 7px;
+  color: #9eacbc;
+  font-family: 'DM Mono', monospace;
+  font-size: 8.5px;
+  letter-spacing: 0.03em;
+}
+
+.execution-plan-head small {
+  min-width: 31px;
+  padding: 2px 6px;
+  color: #7ee2c5;
+  font-size: 8px;
+  text-align: center;
+  background: rgba(115, 232, 196, 0.075);
+  border: 1px solid rgba(115, 232, 196, 0.13);
+  border-radius: 999px;
+}
+
+.execution-plan-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.execution-plan-title i {
+  width: 5px;
+  height: 5px;
+  background: var(--accent);
+  border-radius: 50%;
+  box-shadow: 0 0 8px rgba(115, 232, 196, 0.72);
+  animation: pulse 1.2s infinite;
+}
+
+.execution-plan-title.is-done i {
+  background: #6ba995;
+  box-shadow: none;
+  animation: none;
+}
+
+.execution-plan-progress {
+  height: 1px;
+  margin: 0 11px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.execution-plan-progress i {
+  display: block;
+  width: var(--plan-progress, 0%);
+  height: 100%;
+  background: linear-gradient(90deg, #69d9ba, #9bead8);
+  box-shadow: 0 0 8px rgba(115, 232, 196, 0.55);
+  transition: width 260ms ease;
+}
+
+.execution-plan ol {
+  position: relative;
+  display: grid;
+  gap: 0;
+  padding: 5px 7px 6px;
+  margin: 0;
+  list-style: none;
+}
+
+.execution-plan li {
+  display: grid;
+  position: relative;
+  grid-template-columns: 19px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 29px;
+  padding: 3px 5px;
+  border-radius: 6px;
+  transition: color 160ms ease, background 160ms ease, transform 160ms ease;
+}
+
+.execution-plan li.is-running {
+  color: #e6fff8;
+  background: linear-gradient(
+    90deg,
+    rgba(115, 232, 196, 0.085),
+    rgba(115, 232, 196, 0.015)
+  );
+  transform: translateX(1px);
+}
+
+.execution-plan li.is-failed {
+  color: #ffc0c5;
+  background: rgba(255, 125, 137, 0.055);
+}
+
+.execution-plan li.is-completed {
+  color: #9ab6aa;
+}
+
+.execution-plan li.is-skipped {
+  color: #657181;
+}
+
+.plan-index {
+  display: grid;
+  width: 18px;
+  height: 18px;
+  place-items: center;
+  color: #7a8798;
+  font-family: 'DM Mono', monospace;
+  font-size: 8px;
+  background: rgba(8, 14, 20, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 50%;
+}
+
+.is-running .plan-index {
+  color: #07120f;
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 10px rgba(115, 232, 196, 0.35);
+}
+
+.is-completed .plan-index {
+  color: #0b1713;
+  background: #77c9ad;
+  border-color: #77c9ad;
+}
+
+.is-failed .plan-index {
+  color: #2b0a0f;
+  background: #ee8c96;
+  border-color: #ee8c96;
+}
+
+.plan-title {
+  min-width: 0;
+  font-size: 10.5px;
+  line-height: 1.45;
+  white-space: normal;
+}
+
+.execution-plan li > small {
+  min-width: 28px;
+  padding: 2px 5px;
+  color: #607080;
+  font-family: 'DM Mono', monospace;
+  font-size: 7px;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.035);
+  border-radius: 999px;
+}
+
+.execution-plan li.is-completed > small {
+  color: #67bfa0;
+  background: rgba(103, 191, 160, 0.07);
+}
+
+.execution-plan li.is-failed > small {
+  color: #e28c96;
+  background: rgba(226, 140, 150, 0.08);
+}
+
+.execution-activities {
+  display: grid;
+  gap: 3px;
+  padding: 7px 11px 9px;
+  border-top: 1px solid rgba(255, 255, 255, 0.055);
+}
+
+.execution-activities-label {
+  margin-bottom: 2px;
+  color: #6e7d8e;
+  font-family: 'DM Mono', monospace;
+  font-size: 7.5px;
+  letter-spacing: 0.06em;
+}
+
+.execution-activity {
+  display: grid;
+  grid-template-columns: 7px 58px minmax(0, 1fr);
+  align-items: start;
+  gap: 6px;
+  min-height: 23px;
+  padding: 3px 4px;
+  border-radius: 5px;
+}
+
+.execution-activity > i {
+  width: 5px;
+  height: 5px;
+  margin-top: 5px;
+  background: #718091;
+  border-radius: 50%;
+}
+
+.execution-activity.is-running {
+  background: rgba(115, 232, 196, 0.045);
+}
+
+.execution-activity.is-running > i {
+  background: var(--accent);
+  box-shadow: 0 0 7px rgba(115, 232, 196, 0.65);
+  animation: pulse 1.2s infinite;
+}
+
+.execution-activity.is-ok > i {
+  background: #68c4a4;
+}
+
+.execution-activity.is-error > i {
+  background: #e78a94;
+}
+
+.execution-activity-name {
+  color: #8493a5;
+  font-family: 'DM Mono', monospace;
+  font-size: 8px;
+  line-height: 1.6;
+}
+
+.execution-activity-message {
+  color: #aebaca;
+  font-size: 9.5px;
+  line-height: 1.55;
+}
+
+.execution-activity.is-running .execution-activity-message {
+  color: #d7f7ee;
+}
+
+.execution-activity.is-error .execution-activity-message {
+  color: #f0aab1;
+}
+
+.activity-swap-enter-active,
+.activity-swap-leave-active {
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.activity-swap-enter-from {
+  opacity: 0;
+  transform: translateY(4px);
+}
+
+.activity-swap-leave-to {
+  opacity: 0;
+  transform: translateY(-3px);
 }
 
 .message-content {
@@ -5236,6 +5502,32 @@ svg {
 
   .message-body {
     max-width: calc(100% - 35px);
+  }
+
+  .message-row--assistant .message-body {
+    width: calc(100% - 35px);
+  }
+
+  .execution-plan-head {
+    padding: 9px 11px 7px;
+  }
+
+  .execution-plan-progress {
+    margin: 0 11px;
+  }
+
+  .execution-plan ol {
+    padding: 7px;
+  }
+
+  .execution-plan li {
+    grid-template-columns: 20px minmax(0, 1fr) auto;
+    gap: 7px;
+    padding: 5px;
+  }
+
+  .plan-title {
+    font-size: 10px;
   }
 
   .message-content {

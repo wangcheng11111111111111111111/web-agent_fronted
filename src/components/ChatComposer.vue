@@ -4,11 +4,13 @@ import { nextTick, ref } from 'vue'
 const props = defineProps<{
   busy: boolean
   showSources: boolean
+  showPlan: boolean
 }>()
 
 const emit = defineEmits<{
   send: [message: string, enableWebSearch: boolean]
   'update:showSources': [value: boolean]
+  'update:showPlan': [value: boolean]
   stop: []
 }>()
 
@@ -96,7 +98,28 @@ function keydown(event: KeyboardEvent): void {
             <path d="M14 2v6h6" />
             <path d="M9 13h6M9 17h4" />
           </svg>
-          <span>来源</span>
+          <span>显示来源</span>
+        </button>
+        <button
+          type="button"
+          class="web-toggle"
+          :class="{ 'web-toggle--on': props.showPlan }"
+          aria-label="显示任务规划与调用记录"
+          :aria-pressed="props.showPlan"
+          :title="
+            props.showPlan
+              ? '已显示任务规划与调用记录'
+              : '显示任务规划与调用记录'
+          "
+          @click="emit('update:showPlan', !props.showPlan)"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true" class="globe-icon">
+            <path d="M8 6h11M8 12h11M8 18h7" />
+            <circle cx="4" cy="6" r="1" />
+            <circle cx="4" cy="12" r="1" />
+            <circle cx="4" cy="18" r="1" />
+          </svg>
+          <span>显示规划</span>
         </button>
         <span class="model-label"><i /> DeepSeek · LangGraph</span>
         <button v-if="busy" class="stop-button" aria-label="停止生成" @click="emit('stop')">

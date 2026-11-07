@@ -14,12 +14,19 @@ import {
   listSessions,
   streamChat,
 } from './services/api'
-import type { ChatMessage, SessionSummary, Source } from './types'
+import type {
+  AgentActivity,
+  ChatMessage,
+  SessionSummary,
+  Source,
+  StreamEvent,
+} from './types'
 
 const SESSION_KEY = 'nebula-ai-session-id'
 const SHOW_SOURCES_KEY = 'nebula-show-sources'
 const SIDEBAR_COLLAPSED_KEY = 'nebula-sidebar-collapsed'
 const WEB_SEARCH_KEY = 'nebula-web-search-enabled-v2'
+const SHOW_PLAN_KEY = 'nebula-show-plan'
 
 const sessions = ref<SessionSummary[]>([])
 const messages = ref<ChatMessage[]>([])
@@ -40,10 +47,16 @@ const agentStage = ref('')
 const errorMessage = ref('')
 const toastMessage = ref('')
 const showSources = ref(localStorage.getItem(SHOW_SOURCES_KEY) === '1')
+const showPlan = ref(localStorage.getItem(SHOW_PLAN_KEY) === '1')
 
 function setShowSources(val: boolean): void {
   showSources.value = val
   localStorage.setItem(SHOW_SOURCES_KEY, val ? '1' : '0')
+}
+
+function setShowPlan(value: boolean): void {
+  showPlan.value = value
+  localStorage.setItem(SHOW_PLAN_KEY, value ? '1' : '0')
 }
 
 function toggleSidebarCollapse(): void {
@@ -299,6 +312,62 @@ function showToast(message: string): void {
   }, 4000)
 }
 
+function settleInterruptedPlan(message: ChatMessage | undefined): void {
+  if (!message?.plan?.length) return
+  for (const step of message.plan) {
+    if (step.status === 'running') step.status = 'failed'
+    else if (step.status === 'pending') step.status = 'skipped'
+  }
+}
+
+const ACTIVITY_TITLES: Record<string, string> = {
+  select_tools: '工具选择',
+  load_memory: '记忆检索',
+  retrieve: '知识库检索',
+  web_search: '联网搜索',
+  crawl: '网页读取',
+  time_tool: '当前时间',
+  execute_tools: '工具执行',
+}
+
+function recordActivity(
+  message: ChatMessage,
+  event: Extract<StreamEvent, { type: 'status' }>,
+): void {
+  if (
+    event.stage === 'plan_task' ||
+    (event.stage === 'web_search' &&
+      event.message === '正在联网搜索最新信息')
+  ) {
+    return
+  }
+  const title = ACTIVITY_TITLES[event.stage] || event.stage
+  const id = `${event.stage}:${event.query || 'main'}`
+  const messageText = event.message || title
+  const status: AgentActivity['status'] = event.error
+    ? 'error'
+    : /正在|读取中|搜索中/.test(messageText)
+      ? 'running'
+      : 'ok'
+  const activity: AgentActivity = {
+    id,
+    stage: event.stage,
+    title,
+    message: messageText,
+    status,
+  }
+  if (!message.activities) message.activities = []
+  const index = message.activities.findIndex((item) => item.id === id)
+  if (index >= 0) message.activities[index] = activity
+  else message.activities.push(activity)
+}
+
+function settleInterruptedActivities(message: ChatMessage | undefined): void {
+  for (const activity of message?.activities || []) {
+    if (activity.status === 'running') activity.status = 'error'
+  }
+}
+
 function removeDocumentReferences(documentId: string): void {
   for (const message of messages.value) {
     if (!message.sources?.length) continue
@@ -407,7 +476,19 @@ async function sendMessage(text: string, enableWebSearch = false): Promise<void>
         if (event.type === 'start') {
           activeSessionId.value = event.session_id
           localStorage.setItem(SESSION_KEY, event.session_id)
+        } else if (event.type === 'plan') {
+          target.plan = event.steps.map((step) => ({ ...step }))
+          agentStage.value = event.message || '正在按计划执行...'
+        } else if (event.type === 'plan_step') {
+          const plan = event.execution_plan ?? target.plan
+          if (plan) {
+            target.plan = plan.map((step) => ({ ...step }))
+          }
+          if (event.message && event.status === 'running') {
+            agentStage.value = event.message
+          }
         } else if (event.type === 'status') {
+          recordActivity(target, event)
           if (event.stage === 'select_tools') {
             agentStage.value = event.message || '正在选择工具...'
           } else if (event.stage === 'load_memory') {
@@ -421,11 +502,17 @@ async function sendMessage(text: string, enableWebSearch = false): Promise<void>
           target.content += event.content
           agentStage.value = ''
         } else if (event.type === 'error') {
+          settleInterruptedPlan(target)
+          settleInterruptedActivities(target)
           target.content = event.message
           target.error = true
           showError(event.message)
         } else if (event.type === 'done') {
           completed = true
+          if (event.status === 'error') {
+            settleInterruptedPlan(target)
+            settleInterruptedActivities(target)
+          }
           if (event.assistant_message_id) {
             target.id = event.assistant_message_id
           }
@@ -448,6 +535,10 @@ async function sendMessage(text: string, enableWebSearch = false): Promise<void>
     if (target) {
       if (!target.content) target.content = message
       target.error = !isAbort
+      if (!isAbort) {
+        settleInterruptedPlan(target)
+        settleInterruptedActivities(target)
+      }
     }
     if (!isAbort) showError(message)
   } finally {
@@ -636,6 +727,7 @@ onBeforeUnmount(() => {
           :assistant-name="assistantName"
           :logo-url="assistantLogoUrl"
           :show-sources="showSources"
+          :show-plan="showPlan"
           @suggest="sendMessage"
           @regenerate="regenerate"
         />
@@ -732,8 +824,10 @@ onBeforeUnmount(() => {
         <ChatComposer
           :busy="busy"
           :show-sources="showSources"
+          :show-plan="showPlan"
           @send="sendMessage"
           @update:show-sources="setShowSources"
+          @update:show-plan="setShowPlan"
           @stop="stopGeneration"
         />
       </div>

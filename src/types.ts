@@ -1,5 +1,29 @@
 export type Role = 'user' | 'assistant'
 
+export type PlanStepStatus =
+  | 'pending'
+  | 'running'
+  | 'completed'
+  | 'failed'
+  | 'skipped'
+
+export interface PlanStep {
+  id: string
+  title: string
+  tool?: string
+  status: PlanStepStatus
+}
+
+export type AgentActivityStatus = 'running' | 'ok' | 'error'
+
+export interface AgentActivity {
+  id: string
+  stage: string
+  title: string
+  message: string
+  status: AgentActivityStatus
+}
+
 export interface ChatMessage {
   id: string
   role: Role
@@ -10,6 +34,8 @@ export interface ChatMessage {
   sources?: Source[]
   memories?: MemoryFact[]
   recalledConversations?: RecalledConversation[]
+  plan?: PlanStep[]
+  activities?: AgentActivity[]
 }
 
 export interface Source {
@@ -110,6 +136,19 @@ export interface RecalledConversation {
 export type StreamEvent =
   | { type: 'start'; session_id: string }
   | {
+      type: 'plan'
+      steps: PlanStep[]
+      source: 'model' | 'fallback'
+      message?: string
+    }
+  | {
+      type: 'plan_step'
+      step_id: string
+      status: PlanStepStatus
+      message?: string
+      execution_plan?: PlanStep[]
+    }
+  | {
       type: 'status'
       stage: string
       message?: string
@@ -117,6 +156,10 @@ export type StreamEvent =
       source_count?: number
       memory_count?: number
       recalled_conversation_count?: number
+      tool_count?: number
+      error_count?: number
+      query?: string
+      error?: boolean
     }
   | { type: 'delta'; content: string }
   | { type: 'error'; code: string; message: string }

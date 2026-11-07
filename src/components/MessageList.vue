@@ -1,7 +1,7 @@
 ﻿<script setup lang="ts">
 import { nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { marked } from 'marked'
-import type { ChatMessage, Source } from '../types'
+import type { ChatMessage, PlanStepStatus, Source } from '../types'
 import {
   listVoices,
   streamTTSSegments,
@@ -20,6 +20,7 @@ const props = defineProps<{
   assistantName: string
   logoUrl: string | null
   showSources: boolean
+  showPlan: boolean
 }>()
 
 const emit = defineEmits<{
@@ -418,6 +419,16 @@ function readableStage(): string {
   return '正在思考...'
 }
 
+function planStatusLabel(status: PlanStepStatus): string {
+  return {
+    pending: '等待',
+    running: '执行中',
+    completed: '完成',
+    failed: '失败',
+    skipped: '跳过',
+  }[status]
+}
+
 function renderMarkdown(content: string): string {
   return marked.parse(content) as string
 }
@@ -504,6 +515,91 @@ function stripMarkdown(md: string): string {
               <i />
               正在生成
             </span>
+          </div>
+          <div
+            v-if="
+              message.role === 'assistant' &&
+              showPlan &&
+              message.plan?.length
+            "
+            class="execution-plan"
+            aria-live="polite"
+          >
+            <div class="execution-plan-head">
+              <span
+                class="execution-plan-title"
+                :class="{ 'is-done': !message.streaming }"
+              >
+                <i />
+                {{ message.streaming ? '任务执行中' : '执行记录' }}
+              </span>
+              <small>
+                {{
+                  message.plan.filter((step) => step.status === 'completed').length
+                }}/{{ message.plan.length }}
+              </small>
+            </div>
+            <div
+              class="execution-plan-progress"
+              :style="{
+                '--plan-progress': `${
+                  (message.plan.filter((step) => step.status === 'completed').length
+                    / message.plan.length) * 100
+                }%`,
+              }"
+              aria-hidden="true"
+            >
+              <i />
+            </div>
+            <ol>
+              <li
+                v-for="(step, index) in message.plan"
+                :key="step.id"
+                :class="`is-${step.status}`"
+              >
+                <span
+                  class="plan-index"
+                  :aria-label="planStatusLabel(step.status)"
+                >
+                  {{
+                    step.status === 'completed'
+                      ? '✓'
+                      : step.status === 'failed'
+                        ? '!'
+                        : index + 1
+                  }}
+                </span>
+                <span class="plan-title">{{ step.title }}</span>
+                <small v-if="!['pending', 'completed'].includes(step.status)">
+                  {{ planStatusLabel(step.status) }}
+                </small>
+              </li>
+            </ol>
+            <div
+              v-if="message.activities?.length"
+              class="execution-activities"
+            >
+              <span class="execution-activities-label">调用步骤</span>
+              <Transition
+                name="activity-swap"
+                mode="out-in"
+              >
+                <div
+                  v-if="message.activities.at(-1)"
+                  :key="message.activities.at(-1)?.id"
+                  class="execution-activity"
+                  :class="`is-${message.activities.at(-1)?.status}`"
+                >
+                  <i />
+                  <span class="execution-activity-name">
+                    {{ message.activities.at(-1)?.title }}
+                  </span>
+                  <span class="execution-activity-message">
+                    {{ message.activities.at(-1)?.message }}
+                  </span>
+                </div>
+              </Transition>
+            </div>
           </div>
           <div
             v-if="message.content"
@@ -645,7 +741,14 @@ function stripMarkdown(md: string): string {
         <div v-if="message.role === 'user'" class="avatar user-avatar">我</div>
       </article>
 
-      <div v-if="busy && messages.at(-1)?.content === ''" class="agent-stage">
+      <div
+        v-if="
+          busy &&
+          messages.at(-1)?.content === '' &&
+          !(showPlan && messages.at(-1)?.plan?.length)
+        "
+        class="agent-stage"
+      >
         <span class="stage-dot" />
         {{ readableStage() }}
       </div>
